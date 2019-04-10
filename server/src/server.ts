@@ -41,6 +41,8 @@ const dmypy = '/Users/matan/Documents/code/mypy/.venv38/bin/dmypy';
 let started = false;
 let queuedAnalyses: string[] = [];
 
+let _rootPath: string | null;
+
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 _connection.onInitialize((params): InitializeResult => {
@@ -79,15 +81,25 @@ _connection.onInitialize((params): InitializeResult => {
     //         }
     //     });
     // });
-    _connection.console.log(`Running dmypy in ${process.cwd()}`);
-    execLog(`${dmypy} restart --log-file dmypy.log -- --use-fine-grained-cache --follow-imports=skip`, (error, stdout, stderr) => {
-        started = true;
-        for (const queued of queuedAnalyses) {
-            analyze(queued);
-        }
-        queuedAnalyses = [];
-    });
+    if (params.rootUri === null) {
+        _connection.console.log(`No root URI, quitting.`);
+        return {capabilities: {}};
+    }
 
+    _rootPath = _convertUriToPath(params.rootUri);
+    _connection.console.log(`Running dmypy in ${process.cwd()}`);
+    // execLog(`${dmypy} restart --log-file dmypy.log -- --use-fine-grained-cache --follow-imports=skip`, (error, stdout, stderr) => {
+    //     started = true;
+    //     // for (const queued of queuedAnalyses) {
+    //     //     analyze(queued);
+    //     // }
+    //     // queuedAnalyses = [];
+    //     analyzeWorkspaceFolder();
+    // });
+    execLog(`${dmypy} run --log-file dmypy.log -- ${_rootPath} --follow-imports=skip`, (error, stdout, stderr) => {
+        started = true;
+        _connection.console.log(`dmypy run finished`);
+    });
     return {
         capabilities: {
             // Tell the client that the server works in FULL text document
@@ -98,6 +110,14 @@ _connection.onInitialize((params): InitializeResult => {
         }
     };
 });
+
+function analyzeWorkspaceFolder() {
+    if (!started || _rootPath === null) {
+        return;
+    }
+    // analyze(_rootPath);
+    recheck();
+}
 
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
@@ -117,7 +137,7 @@ _documents.onDidSave(change => {
 _connection.onDidSaveTextDocument(change => {
     let filePath = _convertUriToPath(change.textDocument.uri);
     _connection.console.log(`File "${ filePath }" saved [conn] -- checking`);
-    queueAnalyze(filePath);
+    analyzeWorkspaceFolder();
 });
 
 _connection.onDefinition(async params => {
@@ -158,6 +178,11 @@ function queueAnalyze(filePath: string) {
 function analyze(filePath: string) {
     _connection.console.log(`Analyzing "${ filePath }"`);
     execLog(`${dmypy} check -- ${filePath}`);
+}
+
+function recheck() {
+    _connection.console.log('Rechecking');
+    execLog(`${dmypy} recheck`);
 }
 
 // _connection.onHover(params => {
@@ -242,8 +267,9 @@ function analyze(filePath: string) {
 
 _connection.onDidOpenTextDocument(params => {
     const filePath = _convertUriToPath(params.textDocument.uri);
-    _connection.console.log(`File "${filePath}" opened -- checking`);
-    queueAnalyze(filePath);
+    _connection.console.log(`File "${filePath}" opened -- not checking`);
+    // queueAnalyze(filePath);
+    // TODO: what to do with opened files outside workspace?
 });
 
 // _connection.onDidChangeTextDocument(params => {
