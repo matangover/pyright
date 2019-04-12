@@ -119,6 +119,11 @@ function analyzeWorkspaceFolder() {
     recheck();
 }
 
+_connection.onExit(() => {
+    started = false;
+    execLog(`${dmypy} stop`);
+});
+
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
 _documents.onDidSave(change => {
@@ -265,12 +270,12 @@ function recheck() {
 //     return Position.create(position.line, position.column);
 // }
 
-_connection.onDidOpenTextDocument(params => {
-    const filePath = _convertUriToPath(params.textDocument.uri);
-    _connection.console.log(`File "${filePath}" opened -- not checking`);
-    // queueAnalyze(filePath);
-    // TODO: what to do with opened files outside workspace?
-});
+// _connection.onDidOpenTextDocument(params => {
+//     const filePath = _convertUriToPath(params.textDocument.uri);
+//     _connection.console.log(`File "${filePath}" opened -- not checking`);
+//     // queueAnalyze(filePath);
+//     // TODO: what to do with opened files outside workspace?
+// });
 
 // _connection.onDidChangeTextDocument(params => {
 //     let filePath = _convertUriToPath(params.textDocument.uri);
