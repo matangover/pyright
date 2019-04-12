@@ -7,7 +7,7 @@
 import {
     createConnection, IConnection,
     InitializeResult, IPCMessageReader, IPCMessageWriter, Location,
-    Position, Range, TextDocuments
+    MarkupContent, Position, Range, TextDocuments
 } from 'vscode-languageserver';
 
 import { exec, ExecException } from 'child_process';
@@ -105,8 +105,8 @@ _connection.onInitialize((params): InitializeResult => {
             // Tell the client that the server works in FULL text document
             // sync mode (as opposed to incremental).
             textDocumentSync: _documents.syncKind,
-            definitionProvider: true
-            // hoverProvider: true
+            definitionProvider: true,
+            hoverProvider: true
         }
     };
 });
@@ -189,6 +189,26 @@ function recheck() {
     _connection.console.log('Rechecking');
     execLog(`${dmypy} recheck`);
 }
+
+_connection.onHover(async params => {
+    let filePath = _convertUriToPath(params.textDocument.uri);
+    const result = await new Promise<string>(resolve => {
+        execLog(`${dmypy} suggest "${filePath} ${params.position.line + 1} ${params.position.character + 1}"`,
+            (_error, stdout, _stderr) => {
+            resolve(stdout);
+        });
+    });
+    _connection.console.log(`Got hover: ${result}`);
+    if (!result || result.startsWith('Unknown')) {
+        return null;
+    }
+
+    let markupContent: MarkupContent = {
+        kind: 'plaintext',
+        value: result
+    };
+    return { contents: markupContent };
+});
 
 // _connection.onHover(params => {
 //     let filePath = _convertUriToPath(params.textDocument.uri);
